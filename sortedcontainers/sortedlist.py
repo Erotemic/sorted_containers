@@ -63,7 +63,7 @@ def benchmark_join2():
     import utool as ut
     times = []
     xdata = []
-    exp_list = range(16, 22)
+    exp_list = range(10, 20)
     for x in (exp_list):
         print('x = %r' % (x,))
         xdata.append(2 ** x)
@@ -93,14 +93,21 @@ def benchmark_join2():
             keys_new = keys1[:]
             with timer:
                 keys_new.extend(keys2)
-        times.append([t1, t2, t3])
+        t4 = ut.Timerit(num, 'sortedlist extend')
+        for timer in t4:
+            self  = SortedList(keys1, load=load)
+            other = SortedList(keys2, load=load)
+            with timer:
+                new = self.extend(other)  # NOQA
+        times.append([t1, t2, t3, t4])
         print('--------------------')
     import plottool as pt
     pt.qt4ensure()
     timers_list = [ts for ts in zip(*times)]
     ydata_list = [[t.ave_secs for t in ts] for ts in zip(*times)]
     label_list = [ts[0].label for ts in timers_list]
-    pt.multi_plot(xdata, ydata_list, label_list=label_list)
+    pt.multi_plot(xdata, ydata_list, label_list=label_list,
+                  xlabel='#items', ylabel='seconds')
     ut.show_if_requested()
 
 
