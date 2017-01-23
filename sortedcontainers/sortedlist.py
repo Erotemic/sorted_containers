@@ -3,7 +3,7 @@
 """
 # pylint: disable=redefined-builtin, ungrouped-imports
 
-from __future__ import print_function
+from __future__ import print_function, absolute_import
 
 from bisect import bisect_left, bisect_right, insort
 from collections import Sequence, MutableSequence
@@ -13,6 +13,9 @@ from math import log as log_e
 import operator as op
 from operator import iadd, add
 from sys import hexversion
+import utool as ut
+print, rrr, profile = ut.inject2(__name__)
+
 
 if hexversion < 0x03000000:
     from itertools import izip as zip
@@ -51,6 +54,56 @@ def recursive_repr(func):
     return wrapper
 
 
+def benchmark_join2():
+    r"""
+    CommandLine:
+        python -m sortedcontainers.sortedlist benchmark_join2 --profile
+        python -m sortedcontainers.sortedlist benchmark_join2 --show
+    """
+    import utool as ut
+    times = []
+    xdata = []
+    exp_list = range(16, 22)
+    for x in (exp_list):
+        print('x = %r' % (x,))
+        xdata.append(2 ** x)
+        lowhigh = [2 ** x, 2 ** x]
+        offset = max(lowhigh) * 2
+        direction = 1
+        keys1 = list(range(lowhigh[direction]))
+        keys2 = list((x + offset for x in range(lowhigh[1 - direction])))
+        #
+        load = 1000
+        num = 1
+        t1 = ut.Timerit(num, 'sortedlist join2')
+        for timer in t1:
+            self  = SortedList(keys1, load=load)
+            other = SortedList(keys2, load=load)
+            with timer:
+                new = self.join2(other)
+        #
+        t2 = ut.Timerit(num, 'list add')
+        for timer in t2:
+            keys_new = keys1[:]
+            with timer:
+                new = keys1 + keys2  # NOQA
+        #
+        t3 = ut.Timerit(num, 'list extend')
+        for timer in t3:
+            keys_new = keys1[:]
+            with timer:
+                keys_new.extend(keys2)
+        times.append([t1, t2, t3])
+        print('--------------------')
+    import plottool as pt
+    pt.qt4ensure()
+    timers_list = [ts for ts in zip(*times)]
+    ydata_list = [[t.ave_secs for t in ts] for ts in zip(*times)]
+    label_list = [ts[0].label for ts in timers_list]
+    pt.multi_plot(xdata, ydata_list, label_list=label_list)
+    ut.show_if_requested()
+
+
 class SortedList(MutableSequence):
     """
     SortedList provides most of the same methods as a list but keeps the items
@@ -84,13 +137,15 @@ class SortedList(MutableSequence):
         if iterable is not None:
             self._update(iterable)
 
+    @profile
     def join2(self, other):
         r"""
         Args:
             other (SortedList):
 
         CommandLine:
-            python -m sortedcontainers.sortedlist join2:1 --show
+            python -m sortedcontainers.sortedlist SortedList.join2:0 --show
+            python -m sortedcontainers.sortedlist SortedList.join2:1 --show
 
         Example:
             >>> from sortedcontainers.sortedlist import *  # NOQA
@@ -100,7 +155,7 @@ class SortedList(MutableSequence):
             >>> for x in range(0, 2 ** n):
             >>>     for y in range(0, 2 ** n):
             >>>         lowhigh_cases += [[x, y]]
-            >>> lowhigh_cases = [[2 ** 10, 2 ** 9]]
+            >>> #lowhigh_cases = [[2 ** 10, 2 ** 9]]
             >>> directions = [0, 1]
             >>> offset = max(map(max, lowhigh_cases)) * 2
             >>> test_cases = list(ut.product(directions, lowhigh_cases))
@@ -109,57 +164,14 @@ class SortedList(MutableSequence):
             >>>     keys2 = list((x + offset for x in range(lowhigh[1 - direction])))
             >>>     self  = SortedList(keys1, load=4)
             >>>     other = SortedList(keys2, load=4)
-            >>>     print('self = %r' % (self,))
-            >>>     print('other = %r' % (other,))
+            >>>     #print('self = %r' % (self,))
+            >>>     #print('other = %r' % (other,))
             >>>     new = self.join2(other)
-            >>>     print('new = %r' % (new,))
-            >>>     print('------------------')
+            >>>     #print('new = %r' % (new,))
+            >>>     #print('------------------')
             >>>     assert self is new
             >>>     assert keys1 + keys2 == list(new)
-
-        Example:
-            >>> from sortedcontainers.sortedlist import *  # NOQA
-            >>> import utool as ut
-            >>> times = []
-            >>> xdata = []
-            >>> exp_list = range(10, 20)
-            >>> for x in (exp_list):
-            >>>     xdata.append(2 ** x)
-            >>>     lowhigh = [2 ** x, 2 ** x]
-            >>>     offset = max(lowhigh) * 2
-            >>>     direction = 1
-            >>>     keys1 = list(range(lowhigh[direction]))
-            >>>     keys2 = list((x + offset for x in range(lowhigh[1 - direction])))
-            >>>     #
-            >>>     load = 1000
-            >>>     num = 5
-            >>>     t1 = ut.Timerit(num, 'sortedlist join2')
-            >>>     for timer in t1:
-            >>>         self  = SortedList(keys1, load=load)
-            >>>         other = SortedList(keys2, load=load)
-            >>>         with timer:
-            >>>             new = self.join2(other)
-            >>>     #
-            >>>     t2 = ut.Timerit(num, 'list add')
-            >>>     for timer in t2:
-            >>>         keys_new = keys1[:]
-            >>>         with timer:
-            >>>             new = keys1 + keys2
-            >>>     #
-            >>>     t3 = ut.Timerit(10, 'list extend')
-            >>>     for timer in t3:
-            >>>         keys_new = keys1[:]
-            >>>         with timer:
-            >>>             keys_new.extend(keys2)
-            >>>     times.append([t1, t2, t3])
-            >>>     print('--------------------')
-            >>> import plottool as pt
-            >>> pt.qt4ensure()
-            >>> timers_list = [ts for ts in zip(*times)]
-            >>> ydata_list = [[t.ave_secs for t in ts] for ts in zip(*times)]
-            >>> label_list = [ts[0].label for ts in timers_list]
-            >>> pt.multi_plot(xdata, ydata_list, label_list=label_list)
-            >>> ut.show_if_requested()
+            >>>     new._check()
 
         Example:
             >>> from sortedcontainers.sortedlist import *  # NOQA
@@ -169,23 +181,70 @@ class SortedList(MutableSequence):
             >>> print(result)
 
         """
-        if not isinstance(other, SortedList):
-            raise TypeError('other must be SortedList not %r' % type(other))
-        assert self._load == other._load, 'loads must be the same'
-        if self._len > 0 and other._len > 0:
-            assert self[-1] < other[0], (
-                'max(self) must be less than min(other)')
+        # if False:
+        #     if not isinstance(other, SortedList):
+        #         raise TypeError('other must be SortedList not %r' % type(other))
+        #     assert self._load == other._load, 'loads must be the same'
 
-        # Clear index
-        self._lists.extend(other._lists)
-        self._maxes.extend(other._maxes)
+        _lists1 = self._lists
+        _lists2 = other._lists
+
+        _maxes1 = self._maxes
+        _maxes2 = other._maxes
+
         self._len += other._len
+        # Clear index
         del self._index[:]
 
-        other.clear()
+        if _maxes2:
+            # TODO: need to ensure that each sublist is greater than `half`
+            if _maxes1:
+                if False:
+                    assert _maxes1[-1] < _lists2[0][0], (
+                        'max(self) must be less than min(other)')
+                pos = len(_lists1) - 1
+                _lists1[pos].extend(_lists2[0])
+                _maxes1[pos] = _maxes2[0]
+
+                _lists1.extend(_lists2[1:])
+                _maxes1.extend(_maxes2[1:])
+
+                self._expand(pos)
+            else:
+                _lists1.extend(_lists2)
+                _maxes1.extend(_maxes2)
+
+            # At this point `other` should no longer be used.
+            # if False:
+            #     self._len = 0
+            #     del self._lists[:]
+            #     del self._keys[:]
+            #     del self._maxes[:]
+            #     del self._index[:]
+            #     other.clear()
         return self
 
-    def split2(self, val):
+    def extract_slice(self, start, stop):
+        """
+        CommandLine:
+            python -m sortedcontainers.sortedlist SortedList.extract_slice
+
+        Example:
+            >>> from sortedcontainers.sortedlist import *  # NOQA
+            >>> self = SortedList(range(0, 20, 2), load=5)
+            >>> print('self = %r' % (self,))
+            >>> start, stop = 6, 14
+            >>> inner, outer = self.extract_slice(start, stop)
+            >>> print('inner = %r' % (inner,))
+            >>> print('outer = %r' % (outer,))
+        """
+        left, midright = self.split2(start, bisector=bisect_left)
+        middle, right = midright.split2(stop, bisector=bisect_left)
+        outer = left.join2(right)
+        inner = middle
+        return inner, outer
+
+    def split2(self, val, bisector=bisect_left):
         r"""
         CommandLine:
             python -m sortedcontainers.sortedlist SortedList.split2
@@ -210,7 +269,7 @@ class SortedList(MutableSequence):
             other = SortedList(load=self._load)
             return other, self
 
-        pos = bisect_right(_maxes, val)
+        pos = bisector(_maxes, val)
 
         if pos == len(_maxes):
             # If val is greater than max(self) then self is the left part, but
@@ -229,7 +288,7 @@ class SortedList(MutableSequence):
             self._index = []
             return other, self
 
-        idx = bisect_right(_lists[pos], val)
+        idx = bisector(_lists[pos], val)
 
         # Split the internal representation into two parts
         left_lists  = _lists[0:pos + 1]
@@ -258,6 +317,7 @@ class SortedList(MutableSequence):
         other._lists = left_lists
         other._maxes = left_maxes
         other._len = -1  # len must be recomputed
+        # other._len = sum(map(len, left_lists))
 
         # The self becomes the right part
         self._index = []
@@ -265,38 +325,9 @@ class SortedList(MutableSequence):
         self._lists = right_lists
         self._maxes = right_maxes
         self._len = -1  # len must be recomputed
+        # self._len = sum(map(len, right_lists))
 
         return other, self
-
-    def _bisect_right_pos(self, val):
-        """
-        Same as *bisect_left*, but if *val* is already present, the insertion
-        point will be after (to the right of) any existing entries.
-        """
-        _maxes = self._maxes
-
-        if not _maxes:
-            return 0
-
-        pos = bisect_right(_maxes, val)
-
-        if pos == len(_maxes):
-            return self._len
-
-        idx = bisect_right(self._lists[pos], val)
-
-        return (pos, idx)
-
-    def extract_out(self, left_idx, right_idx):
-        """
-        left_idx = 4
-        right_idx = 9
-        x = list(range(20))
-        sl_ = slice(left_idx, right_idx)
-        sub = x[sl_]
-        del x[sl_]
-        """
-        pass
 
     def __new__(cls, iterable=None, key=None, load=1000):
         """
@@ -1171,6 +1202,8 @@ class SortedList(MutableSequence):
 
     def __len__(self):
         """Return the number of elements in the list."""
+        if self._len < 0:
+            self._len = sum(map(len, self._lists))
         return self._len
 
     def bisect_left(self, val):
