@@ -153,8 +153,8 @@ class SortedList(MutableSequence):
         if right_first:
             right_part.insert(0, right_first)
 
-
-        pass
+        other = SortedList()
+        other._list = right_part
 
     def _bisect_right_pos(self, val):
         """
