@@ -59,10 +59,11 @@ def benchmark_join2():
     CommandLine:
         python -m sortedcontainers.sortedlist benchmark_join2 --profile
         python -m sortedcontainers.sortedlist benchmark_join2 --show
+        python -O -m sortedcontainers.sortedlist benchmark_join2  --show
     """
     import utool as ut
-    times = []
     xdata = []
+    timers = ut.ddict(list)
     exp_list = range(10, 20)
     for x in (exp_list):
         print('x = %r' % (x,))
@@ -76,6 +77,7 @@ def benchmark_join2():
         load = 1000
         num = 1
         t1 = ut.Timerit(num, 'sortedlist join2')
+        timers[t1.label].append(t1)
         for timer in t1:
             self  = SortedList(keys1, load=load)
             other = SortedList(keys2, load=load)
@@ -83,29 +85,31 @@ def benchmark_join2():
                 new = self.join2(other)
         #
         t2 = ut.Timerit(num, 'list add')
+        timers[t2.label].append(t2)
         for timer in t2:
             keys_new = keys1[:]
             with timer:
                 new = keys1 + keys2  # NOQA
         #
         t3 = ut.Timerit(num, 'list extend')
+        timers[t3.label].append(t3)
         for timer in t3:
             keys_new = keys1[:]
             with timer:
                 keys_new.extend(keys2)
-        t4 = ut.Timerit(num, 'sortedlist extend')
-        for timer in t4:
-            self  = SortedList(keys1, load=load)
-            other = SortedList(keys2, load=load)
-            with timer:
-                new = self.extend(other)  # NOQA
-        times.append([t1, t2, t3, t4])
+        if False:
+            t4 = ut.Timerit(num, 'sortedlist extend')
+            timers[t4.label].append(t4)
+            for timer in t4:
+                self  = SortedList(keys1, load=load)
+                other = SortedList(keys2, load=load)
+                with timer:
+                    new = self.extend(other)  # NOQA
         print('--------------------')
     import plottool as pt
     pt.qt4ensure()
-    timers_list = [ts for ts in zip(*times)]
-    ydata_list = [[t.ave_secs for t in ts] for ts in zip(*times)]
-    label_list = [ts[0].label for ts in timers_list]
+    ydata_list = [[t.ave_secs for t in ts] for ts in timers.values()]
+    label_list = list(timers.keys())
     pt.multi_plot(xdata, ydata_list, label_list=label_list,
                   xlabel='#items', ylabel='seconds')
     ut.show_if_requested()
@@ -206,9 +210,9 @@ class SortedList(MutableSequence):
         if _maxes2:
             # TODO: need to ensure that each sublist is greater than `half`
             if _maxes1:
-                if False:
-                    assert _maxes1[-1] < _lists2[0][0], (
-                        'max(self) must be less than min(other)')
+                # if False:
+                #     assert _maxes1[-1] < _lists2[0][0], (
+                #         'max(self) must be less than min(other)')
                 pos = len(_lists1) - 1
                 _lists1[pos].extend(_lists2[0])
                 _maxes1[pos] = _maxes2[0]
