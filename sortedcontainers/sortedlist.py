@@ -87,10 +87,79 @@ class SortedList(MutableSequence):
     def join2(self, other):
         r"""
         Args:
-            other (?):
+            other (SortedList):
 
         CommandLine:
-            python -m sortedcontainers.sortedlist join2
+            python -m sortedcontainers.sortedlist join2:1 --show
+
+        Example:
+            >>> from sortedcontainers.sortedlist import *  # NOQA
+            >>> import utool as ut
+            >>> lowhigh_cases = []
+            >>> n = 4
+            >>> for x in range(0, 2 ** n):
+            >>>     for y in range(0, 2 ** n):
+            >>>         lowhigh_cases += [[x, y]]
+            >>> lowhigh_cases = [[2 ** 10, 2 ** 9]]
+            >>> directions = [0, 1]
+            >>> offset = max(map(max, lowhigh_cases)) * 2
+            >>> test_cases = list(ut.product(directions, lowhigh_cases))
+            >>> for direction, lowhigh in ut.ProgIter(test_cases, label='test join2'):
+            >>>     keys1 = list(range(lowhigh[direction]))
+            >>>     keys2 = list((x + offset for x in range(lowhigh[1 - direction])))
+            >>>     self  = SortedList(keys1, load=4)
+            >>>     other = SortedList(keys2, load=4)
+            >>>     print('self = %r' % (self,))
+            >>>     print('other = %r' % (other,))
+            >>>     new = self.join2(other)
+            >>>     print('new = %r' % (new,))
+            >>>     print('------------------')
+            >>>     assert self is new
+            >>>     assert keys1 + keys2 == list(new)
+
+        Example:
+            >>> from sortedcontainers.sortedlist import *  # NOQA
+            >>> import utool as ut
+            >>> times = []
+            >>> xdata = []
+            >>> exp_list = range(10, 20)
+            >>> for x in (exp_list):
+            >>>     xdata.append(2 ** x)
+            >>>     lowhigh = [2 ** x, 2 ** x]
+            >>>     offset = max(lowhigh) * 2
+            >>>     direction = 1
+            >>>     keys1 = list(range(lowhigh[direction]))
+            >>>     keys2 = list((x + offset for x in range(lowhigh[1 - direction])))
+            >>>     #
+            >>>     load = 1000
+            >>>     num = 5
+            >>>     t1 = ut.Timerit(num, 'sortedlist join2')
+            >>>     for timer in t1:
+            >>>         self  = SortedList(keys1, load=load)
+            >>>         other = SortedList(keys2, load=load)
+            >>>         with timer:
+            >>>             new = self.join2(other)
+            >>>     #
+            >>>     t2 = ut.Timerit(num, 'list add')
+            >>>     for timer in t2:
+            >>>         keys_new = keys1[:]
+            >>>         with timer:
+            >>>             new = keys1 + keys2
+            >>>     #
+            >>>     t3 = ut.Timerit(10, 'list extend')
+            >>>     for timer in t3:
+            >>>         keys_new = keys1[:]
+            >>>         with timer:
+            >>>             keys_new.extend(keys2)
+            >>>     times.append([t1, t2, t3])
+            >>>     print('--------------------')
+            >>> import plottool as pt
+            >>> pt.qt4ensure()
+            >>> timers_list = [ts for ts in zip(*times)]
+            >>> ydata_list = [[t.ave_secs for t in ts] for ts in zip(*times)]
+            >>> label_list = [ts[0].label for ts in timers_list]
+            >>> pt.multi_plot(xdata, ydata_list, label_list=label_list)
+            >>> ut.show_if_requested()
 
         Example:
             >>> from sortedcontainers.sortedlist import *  # NOQA
@@ -99,62 +168,105 @@ class SortedList(MutableSequence):
             >>> result = self.join2(other)
             >>> print(result)
 
-        Ignore:
-            print(self._lists)
-            for x in range(101, 112, 2):
-                self.add(x)
-            self.add(200)
-            self.add(99)
-            print(ut.repr4(self._lists))
         """
         if not isinstance(other, SortedList):
             raise TypeError('other must be SortedList not %r' % type(other))
         assert self._load == other._load, 'loads must be the same'
-        assert self[-1] < other[0]
+        if self._len > 0 and other._len > 0:
+            assert self[-1] < other[0], (
+                'max(self) must be less than min(other)')
 
         # Clear index
-        self._index = []
-        self._len += other._len
         self._lists.extend(other._lists)
         self._maxes.extend(other._maxes)
+        self._len += other._len
+        del self._index[:]
 
-    def split2(self, value):
+        other.clear()
+        return self
+
+    def split2(self, val):
         r"""
-        Ignore:
-            self = SortedList(range(0, 30, 2), load=5)
-            self[7]
-            self[3]
-            self.index(4)
-            print(ut.repr4(self._lists))
-            self._loc(0, 4)
-            self.bisect(7)
+        CommandLine:
+            python -m sortedcontainers.sortedlist SortedList.split2
 
-            value = 10
-
-            self.add(200)
-            self.add(99)
-            print(ut.repr4(self._lists))
-
-            ut.lmap(self._pos, range(len(self)))
+        Example:
+            >>> from sortedcontainers.sortedlist import *  # NOQA
+            >>> self = SortedList(range(0, 20, 2), load=5)
+            >>> val = 12
+            >>> for val in [-1, 0, 10, 11, 12, 17, 18, 19, 20, 22]:
+            >>>     left, right = self.copy().split2(val)
+            >>>     print('val = %r' % (val,))
+            >>>     print('left = %r' % (left,))
+            >>>     print('right = %r' % (right,))
+            >>>     print('----')
         """
-        value = 12
-        index = self.bisect(value)
-        (pos, idx) = self._pos(index)
-        left_part = self._lists[0:pos + 1]
-        right_part = self._lists[pos + 1:0]
+        _lists = self._lists
+        _maxes = self._maxes
 
-        left_last = left_part[-1][:idx]
-        right_first = left_part[-1][idx:]
+        if not _maxes or val < _lists[0][0]:
+            # nothing to do if self is empty
+            # nothing to do if the value is less than min(self)
+            other = SortedList(load=self._load)
+            return other, self
 
-        if left_last:
-            left_part[-1] = left_last
+        pos = bisect_right(_maxes, val)
+
+        if pos == len(_maxes):
+            # If val is greater than max(self) then self is the left part, but
+            # this function modifies self in place, so we do a shallow copy
+            # into other and then clear
+            other = SortedList(load=self._load)
+            other._index = self._index
+            other._offset = self._offset
+            other._len = self._len
+            other._lists = _lists
+            other._maxes = _maxes
+
+            self._len = 0
+            self._lists = []
+            self._maxes = []
+            self._index = []
+            return other, self
+
+        idx = bisect_right(_lists[pos], val)
+
+        # Split the internal representation into two parts
+        left_lists  = _lists[0:pos + 1]
+        right_lists = _lists[pos + 1:]
+
+        left_maxes  = _maxes[0:pos + 1]
+        right_maxes = _maxes[pos + 1:]
+
+        # Rectify internal part that was on the border of the split
+        lists_border_last  = left_lists[-1][:idx]
+        lists_border_first = left_lists[-1][idx:]
+
+        if lists_border_first:
+            right_lists.insert(0, lists_border_first)
+            right_maxes.insert(0, left_maxes[-1])
+
+        if lists_border_last:
+            left_lists[-1] = lists_border_last
+            left_maxes[-1] = lists_border_last[-1]
         else:
-            del left_part[-1]
-        if right_first:
-            right_part.insert(0, right_first)
+            del left_maxes[-1]
+            del left_lists[-1]
 
-        other = SortedList()
-        other._list = right_part
+        # Create a new part for the left
+        other = SortedList(load=self._load)
+        other._lists = left_lists
+        other._maxes = left_maxes
+        other._len = -1  # len must be recomputed
+
+        # The self becomes the right part
+        self._index = []
+        self._offset = 0
+        self._lists = right_lists
+        self._maxes = right_maxes
+        self._len = -1  # len must be recomputed
+
+        return other, self
 
     def _bisect_right_pos(self, val):
         """
@@ -184,9 +296,7 @@ class SortedList(MutableSequence):
         sub = x[sl_]
         del x[sl_]
         """
-
         pass
-
 
     def __new__(cls, iterable=None, key=None, load=1000):
         """
@@ -2591,3 +2701,15 @@ class SortedListWithKey(SortedList):
             print('lists', self._lists)
 
             raise
+
+
+if __name__ == '__main__':
+    r"""
+    CommandLine:
+        python -m sortedcontainers.sortedlist
+        python -m sortedcontainers.sortedlist --allexamples
+    """
+    import multiprocessing
+    multiprocessing.freeze_support()  # for win32
+    import utool as ut  # NOQA
+    ut.doctest_funcs()
