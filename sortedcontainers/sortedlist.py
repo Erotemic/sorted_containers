@@ -26,7 +26,8 @@ else:
     try:
         from _thread import get_ident
     except ImportError:
-        from _dummy_thread import get_ident # pylint: disable=import-error
+        from _dummy_thread import get_ident  # pylint: disable=import-error
+
 
 def recursive_repr(func):
     """Decorator to prevent infinite repr recursion."""
@@ -48,6 +49,7 @@ def recursive_repr(func):
             repr_running.discard(key)
 
     return wrapper
+
 
 class SortedList(MutableSequence):
     """
@@ -81,6 +83,110 @@ class SortedList(MutableSequence):
 
         if iterable is not None:
             self._update(iterable)
+
+    def join2(self, other):
+        r"""
+        Args:
+            other (?):
+
+        CommandLine:
+            python -m sortedcontainers.sortedlist join2
+
+        Example:
+            >>> from sortedcontainers.sortedlist import *  # NOQA
+            >>> self = SortedList(range(100, 150, 2), load=5)
+            >>> other = SortedList(range(300, 350, 2), load=5)
+            >>> result = self.join2(other)
+            >>> print(result)
+
+        Ignore:
+            print(self._lists)
+            for x in range(101, 112, 2):
+                self.add(x)
+            self.add(200)
+            self.add(99)
+            print(ut.repr4(self._lists))
+        """
+        if not isinstance(other, SortedList):
+            raise TypeError('other must be SortedList not %r' % type(other))
+        assert self._load == other._load, 'loads must be the same'
+        assert self[-1] < other[0]
+
+        # Clear index
+        self._index = []
+        self._len += other._len
+        self._lists.extend(other._lists)
+        self._maxes.extend(other._maxes)
+
+    def split2(self, value):
+        r"""
+        Ignore:
+            self = SortedList(range(0, 30, 2), load=5)
+            self[7]
+            self[3]
+            self.index(4)
+            print(ut.repr4(self._lists))
+            self._loc(0, 4)
+            self.bisect(7)
+
+            value = 10
+
+            self.add(200)
+            self.add(99)
+            print(ut.repr4(self._lists))
+
+            ut.lmap(self._pos, range(len(self)))
+        """
+        value = 12
+        index = self.bisect(value)
+        (pos, idx) = self._pos(index)
+        left_part = self._lists[0:pos + 1]
+        right_part = self._lists[pos + 1:0]
+
+        left_last = left_part[-1][:idx]
+        right_first = left_part[-1][idx:]
+
+        if left_last:
+            left_part[-1] = left_last
+        else:
+            del left_part[-1]
+        if right_first:
+            right_part.insert(0, right_first)
+
+
+        pass
+
+    def _bisect_right_pos(self, val):
+        """
+        Same as *bisect_left*, but if *val* is already present, the insertion
+        point will be after (to the right of) any existing entries.
+        """
+        _maxes = self._maxes
+
+        if not _maxes:
+            return 0
+
+        pos = bisect_right(_maxes, val)
+
+        if pos == len(_maxes):
+            return self._len
+
+        idx = bisect_right(self._lists[pos], val)
+
+        return (pos, idx)
+
+    def extract_out(self, left_idx, right_idx):
+        """
+        left_idx = 4
+        right_idx = 9
+        x = list(range(20))
+        sl_ = slice(left_idx, right_idx)
+        sub = x[sl_]
+        del x[sl_]
+        """
+
+        pass
+
 
     def __new__(cls, iterable=None, key=None, load=1000):
         """
@@ -1447,9 +1553,11 @@ class SortedList(MutableSequence):
 
             raise
 
+
 def identity(value):
     "Identity function."
     return value
+
 
 class SortedListWithKey(SortedList):
     """
@@ -1881,7 +1989,7 @@ class SortedListWithKey(SortedList):
                 # isn't a Sequence, convert it to a tuple.
 
                 if not isinstance(value, Sequence):
-                    value = tuple(value) # pylint: disable=redefined-variable-type
+                    value = tuple(value)  # pylint: disable=redefined-variable-type
 
                 # Check that the given values are ordered properly.
 
